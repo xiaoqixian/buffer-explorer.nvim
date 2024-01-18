@@ -134,5 +134,12 @@ function M.deep_copy(obj, seen)
     return setmetatable(res, getmetatable(obj))
 end
 
+function M.echoerr(msg)
+  vim.cmd(string.format("echoerr '%s'", msg))
+end
+
+function M.echo(msg)
+  vim.cmd(string.format("echo '%s'", msg))
+end
 
 return M

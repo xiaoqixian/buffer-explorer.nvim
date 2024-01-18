@@ -2,7 +2,6 @@ local Path = require("plenary.path")
 local popup = require("plenary.popup")
 local utils = require("buffer_explorer.utils")
 local log = require("buffer_explorer.dev").log
-local config = require("buffer_explorer.init").config
 
 local M = {}
 local toggled = true
@@ -10,11 +9,17 @@ local toggled = true
 M.menu_winid = nil
 M.menu_bufnr = nil
 
+local config = {
+  width = 60,
+  height = 10,
+  borderchars = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" }
+}
+
 local function create_window()
   log.trace("create_window()")
 
   local width = 60
-  local height = 60
+  local height = 10
 
   if config then
     -- config supports absolute width and relative width
@@ -70,20 +75,6 @@ local function create_window()
   end
 end
 
-local function set_win_buf_options()
-  vim.api.nvim_set_option_value("number", true, { win = M.menu_winid })
-  for k, v in pairs(config.win_extra_options) do
-    vim.api.nvim_set_option_value(k, v, { win = M.menu_winid })
-  end
-
-  vim.api.nvim_buf_set_name(M.menu_bufnr, "buffer_explorer_menu")
-  --[[ vim.api.nvim_buf_set_lines(M.menu_bufnr, 0, #contents, false, contents) ]]
-  vim.api.nvim_buf_set_option(M.menu_bufnr, "filetype", "buffer_explorer")
-  vim.api.nvim_buf_set_option(M.menu_bufnr, "buftype", "acwrite")
-  vim.api.nvim_buf_set_option(M.menu_bufnr, "bufhidden", "wipe")
-  --[[ vim.cmd(string.format(":call cursor(%d, %d)", cur_buf_line, 1)) ]]
-end
-
 local function buf_list_to_contents(buf_list)
   contents = {}
   for _, bufnr in ipairs(buf_list) do
@@ -95,8 +86,11 @@ local function buf_list_to_contents(buf_list)
 end
 
 function M.close_menu()
-  -- always force close
-  vim.api.nvim_win_close(M.menu_winid, true)
+  assert(M.menu_winid)
+  if M.menu_winid and vim.api.nvim_win_is_valid(M.menu_winid) then
+    -- always force close
+    vim.api.nvim_win_close(M.menu_winid, true)
+  end
   M.menu_bufnr = nil
   M.menu_winid = nil
 end
@@ -106,8 +100,32 @@ local function refresh_menu(buf_list, cur_buf_line)
   local menu_lines = vim.api.nvim_buf_line_count(M.menu_bufnr)
   local contents = buf_list_to_contents(buf_list)
   local cursor_line = cur_buf_line or 1
+
+  -- set buffer number for buffer-explorer window
+  vim.api.nvim_set_option_value("number", true, { win = M.menu_winid })
+  -- set extra window options in config
+  if config.extra_win_options then
+    for k, v in pairs(config.win_extra_options) do
+      vim.api.nvim_set_option_value(k, v, { win = M.menu_winid })
+    end
+  end
+
+  vim.api.nvim_buf_set_name(M.menu_bufnr, "buffer_explorer_menu")
+  vim.api.nvim_buf_set_option(M.menu_bufnr, "filetype", "buffer_explorer")
+  vim.api.nvim_buf_set_option(M.menu_bufnr, "buftype", "acwrite")
+  vim.api.nvim_buf_set_option(M.menu_bufnr, "bufhidden", "wipe")
+
+  -- make the buffer temporarily writable to avoid warnings
+  vim.api.nvim_buf_set_option(M.menu_bufnr, "readonly", false)
   vim.api.nvim_buf_set_lines(M.menu_bufnr, 0, menu_lines, false, contents)
-  vim.cmd(string.format(":call cursor(%d, %d)", cursor_line, 1))
+
+  -- make the buffer not modifiable
+  vim.api.nvim_buf_set_option(M.menu_bufnr, "modifiable", false)
+  -- erase the buffer's modified mark to avoid trouble on exiting.
+  vim.api.nvim_buf_set_option(M.menu_bufnr, "modified", false)
+
+  vim.api.nvim_win_set_cursor(M.menu_winid, { cursor_line, 0 })
+  --[[ vim.cmd(string.format(":call cursor(%d, %d)", cursor_line, 1)) ]]
 end
 
 function M.show_menu(buf_list)
@@ -129,7 +147,15 @@ function M.show_menu(buf_list)
   M.menu_winid = win_info.winid
   M.menu_bufnr = win_info.bufnr
 
-  M.refresh_menu(buf_list, cur_buf_line)
+  refresh_menu(buf_list, cur_buf_line)
+end
+
+function M.setup(ui_config)
+  if ui_config and type(ui_config) == "table" then
+    for k, v in pairs(ui_config) do
+      config[k] = v
+    end
+  end
 end
 
 return M
