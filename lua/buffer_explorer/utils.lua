@@ -1,8 +1,8 @@
 local Path = require("plenary.path")
 
-local M = {}
+local utils = {}
 
-function M.can_buf_deleted(bufnr, buf_name)
+function utils.can_buf_deleted(bufnr, buf_name)
   return (
     vim.api.nvim_buf_is_valid(bufnr) and
     not buf_name:match("^term://.*") and
@@ -11,18 +11,18 @@ function M.can_buf_deleted(bufnr, buf_name)
   )
 end
 
-function M.project_key()
+function utils.project_key()
   return vim.loop.cwd()
 end
 
-function M.normalize_path(item)
+function utils.normalize_path(item)
   if string.find(item, ".*:///.*") ~= nil then
       return Path:new(item)
   end
-  return Path:new(Path:new(item):absolute()):make_relative(M.project_key())
+  return Path:new(Path:new(item):absolute()):make_relative(utils.project_key())
 end
 
-function M.get_file_name(file)
+function utils.get_file_name(file)
   return file:match("[^/\\]*$")
 end
 
@@ -37,10 +37,10 @@ local function key_in_table(key, table)
 end
 
 
-function M.get_short_file_name(file, current_short_fns)
+function utils.get_short_file_name(file, current_short_fns)
   local short_name = nil
   -- Get normalized file path
-  file = M.normalize_path(file)
+  file = utils.normalize_path(file)
   -- Get all folders in the file path
   local folders = {}
   -- Convert file to string
@@ -57,10 +57,10 @@ function M.get_short_file_name(file, current_short_fns)
     slash_count = slash_count + 1
   end
   if slash_count == 0 then
-    short_name = M.get_file_name(file)
+    short_name = utils.get_file_name(file)
   else
     -- Return the file name preceded by the number of slashes
-    short_name = slash_count .. "|" .. M.get_file_name(file)
+    short_name = slash_count .. "|" .. utils.get_file_name(file)
   end
   -- Check if the file name is already in the list of short file names
   -- If so, return the short file name with one number in front of it
@@ -78,19 +78,19 @@ end
 
 
 
-function M.get_short_term_name(term_name)
+function utils.get_short_term_name(term_name)
   return term_name:gsub("://.*//", ":")
 end
 
-function M.absolute_path(item)
+function utils.absolute_path(item)
   return Path:new(item):absolute()
 end
 
-function M.is_white_space(str)
+function utils.is_white_space(str)
   return str:gsub("%s", "") == ""
 end
 
-function M.buffer_is_valid(buf_id, buf_name)
+function utils.buffer_is_valid(buf_id, buf_name)
     return 1 == vim.fn.buflisted(buf_id)
       and buf_name ~= ""
 end
@@ -98,21 +98,24 @@ end
 
 -- tbl_deep_extend does not work the way you would think
 local function merge_table_impl(t1, t2)
-  for k, v in pairs(t2) do
-    if type(v) == "table" then
-      if type(t1[k]) == "table" then
-        merge_table_impl(t1[k], v)
+  assert(type(t1) == "table")
+  if type(t2) == "table" then
+    for k, v in pairs(t2) do
+      if type(v) == "table" then
+        if type(t1[k]) == "table" then
+          merge_table_impl(t1[k], v)
+        else
+          t1[k] = v
+        end
       else
         t1[k] = v
       end
-    else
-      t1[k] = v
     end
   end
 end
 
 
-function M.merge_tables(...)
+function utils.merge_tables(...)
   local out = {}
   for i = 1, select("#", ...) do
     merge_table_impl(out, select(i, ...))
@@ -120,8 +123,26 @@ function M.merge_tables(...)
   return out
 end
 
+function utils.extend_table(t1, t2)
+  assert(t1, "table t1 cannot be nil")
+  if type(t2) ~= "table" then
+    return
+  end
 
-function M.deep_copy(obj, seen)
+  for k, v in pairs(t2) do
+    if type(v) == "table" then
+      if type(t1[k]) == "table" then
+        utils.extend_table(t1[k], v)
+      else 
+        t1[k] = v
+      end
+    else 
+      t1[k] = v
+    end
+  end
+end
+
+function utils.deep_copy(obj, seen)
     -- Handle non-tables and previously-seen tables.
     if type(obj) ~= 'table' then return obj end
     if seen and seen[obj] then return seen[obj] end
@@ -130,16 +151,98 @@ function M.deep_copy(obj, seen)
     local s = seen or {}
     local res = {}
     s[obj] = res
-    for k, v in pairs(obj) do res[M.deep_copy(k, s)] = M.deep_copy(v, s) end
+    for k, v in pairs(obj) do res[utils.deep_copy(k, s)] = utils.deep_copy(v, s) end
     return setmetatable(res, getmetatable(obj))
 end
 
-function M.echoerr(msg)
+function utils.echoerr(msg)
   vim.cmd(string.format("echoerr '%s'", msg))
 end
 
-function M.echo(msg)
+function utils.echo(msg)
   vim.cmd(string.format("echo '%s'", msg))
 end
 
-return M
+function utils.lock_buf(bufnr)
+  vim.api.nvim_buf_set_option(bufnr, "modifiable", false)
+  vim.api.nvim_buf_set_option(bufnr, "modified", false)
+end
+function utils.unlock_buf(bufnr)
+  vim.api.nvim_buf_set_option(bufnr, "modifiable", true)
+end
+
+-- return winid of a buffer
+-- if it is not in any window, return nil
+function utils.get_buf_winid(bufnr)
+  local all_wins = vim.api.nvim_list_wins()
+  for _, winid in pairs(all_wins) do
+    if vim.api.nvim_win_get_buf(winid) == bufnr then
+      return winid
+    end
+  end
+  return nil
+end
+
+function utils.edit_buffer(buf_mod) 
+  local bufnr = buf_mod:get_cur_bufnr()
+  local buf_winid = utils.get_buf_winid(bufnr)
+
+  buf_mod.ui_mod:close()
+
+  if buf_winid then
+    vim.api.nvim_set_current_win(buf_winid)
+  else 
+    vim.cmd(string.format("buffer %d", bufnr))
+  end
+end
+
+function utils.tabnew_buffer(buf_mod) 
+  local bufnr = buf_mod:get_cur_bufnr()
+  local buf_winid = utils.get_buf_winid(bufnr)
+
+  buf_mod.ui_mod:close()
+
+  if buf_winid then
+    vim.api.nvim_set_current_win(buf_winid)
+  else
+    local buf_name = vim.api.nvim_buf_get_name(bufnr)
+    vim.cmd(string.format("tabnew %s", buf_name))
+  end
+end
+
+function utils.delete_buffer(buf_mod)
+  local bufnr = buf_mod:get_cur_bufnr()
+
+  if vim.api.nvim_buf_is_valid(bufnr) then
+    -- don't delete modified buffers
+    if vim.bo[bufnr].modified then
+      utils.echo(string.format("buffer %s is modified", vim.api.nvim_buf_get_name(bufnr)))
+      return
+    end
+    
+    vim.api.nvim_buf_delete(bufnr, { force = false })
+    assert(not vim.api.nvim_buf_is_valid(bufnr), 
+      string.format("try to delete buffer %d failed", bufnr))
+  end
+
+  buf_mod:update()
+end
+
+function utils.force_delete_buffer(buf_mod)
+  local bufnr = buf_mod:get_cur_bufnr()
+  vim.api.nvim_buf_delete(bufnr, { force = true })
+  buf_mod:update()
+end
+
+function utils.expand_buf_name(buf_mod)
+  local index = vim.fn.line(".")
+  local bufnr = buf_mod.buf_list[index].bufnr
+  local buf_name = vim.api.nvim_buf_get_name(bufnr)
+
+  vim.api.nvim_buf_set_option(buf_mod.bufnr, "modifiable", true)
+  vim.api.nvim_buf_set_lines(buf_mod.bufnr, index-1, index, false, {buf_name})
+  vim.api.nvim_buf_set_option(buf_mod.bufnr, "modified", false)
+  vim.api.nvim_buf_set_option(buf_mod.bufnr, "modifiable", false)
+end
+
+return utils
