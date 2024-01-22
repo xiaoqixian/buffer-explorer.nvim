@@ -183,11 +183,11 @@ function utils.get_buf_winid(bufnr)
   return nil
 end
 
-function utils.edit_buffer(buf_mod) 
-  local bufnr = buf_mod:get_cur_bufnr()
+function utils.edit_buffer(menu) 
+  local bufnr = menu:get_cur_bufnr()
   local buf_winid = utils.get_buf_winid(bufnr)
 
-  buf_mod.ui_mod:close()
+  menu.ui_mod:close()
 
   if buf_winid then
     vim.api.nvim_set_current_win(buf_winid)
@@ -196,11 +196,11 @@ function utils.edit_buffer(buf_mod)
   end
 end
 
-function utils.tabnew_buffer(buf_mod) 
-  local bufnr = buf_mod:get_cur_bufnr()
+function utils.tabnew_buffer(menu) 
+  local bufnr = menu:get_cur_bufnr()
   local buf_winid = utils.get_buf_winid(bufnr)
 
-  buf_mod.ui_mod:close()
+  menu.ui_mod:close()
 
   if buf_winid then
     vim.api.nvim_set_current_win(buf_winid)
@@ -210,8 +210,8 @@ function utils.tabnew_buffer(buf_mod)
   end
 end
 
-function utils.delete_buffer(buf_mod)
-  local bufnr = buf_mod:get_cur_bufnr()
+function utils.delete_buffer(menu)
+  local bufnr = menu:get_cur_bufnr()
 
   if vim.api.nvim_buf_is_valid(bufnr) then
     -- don't delete modified buffers
@@ -225,38 +225,38 @@ function utils.delete_buffer(buf_mod)
       string.format("try to delete buffer %d failed", bufnr))
   end
 
-  buf_mod:update()
+  menu:update()
 end
 
-function utils.force_delete_buffer(buf_mod)
-  local bufnr = buf_mod:get_cur_bufnr()
+function utils.force_delete_buffer(menu)
+  local bufnr = menu:get_cur_bufnr()
   vim.api.nvim_buf_delete(bufnr, { force = true })
-  buf_mod:update()
+  menu:update()
 end
 
-function utils.expand_buf_name(buf_mod)
+function utils.toggle_buf_name(menu)
   local index = vim.fn.line(".")
-  local bufnr = buf_mod.buf_list[index].bufnr
+  local bufnr = menu.buf_list[index].bufnr
   local buf_name = vim.api.nvim_buf_get_name(bufnr)
 
-  assert(buf_mod.durable_buf_table[bufnr])
-  local name_toggled = buf_mod.durable_buf_table[bufnr].name_toggled
+  assert(menu.durable_buf_table[bufnr])
+  local name_toggled = menu.durable_buf_table[bufnr].name_toggled
 
   if name_toggled then
-    buf_mod.durable_buf_table[bufnr].name = 
+    menu.durable_buf_table[bufnr].name = 
       utils.normalize_path(buf_name)
   else 
-    buf_mod.durable_buf_table[bufnr].name = buf_name
+    menu.durable_buf_table[bufnr].name = buf_name
   end
 
-  buf_mod.durable_buf_table[bufnr].name_toggled = not name_toggled
+  menu.durable_buf_table[bufnr].name_toggled = not name_toggled
 
-  local buf_line = buf_mod:format_buf_line(index)
+  local buf_line = menu:format_buf_line(index)
 
-  vim.api.nvim_buf_set_option(buf_mod.bufnr, "modifiable", true)
-  vim.api.nvim_buf_set_lines(buf_mod.bufnr, index-1, index, false, {buf_line})
-  vim.api.nvim_buf_set_option(buf_mod.bufnr, "modified", false)
-  vim.api.nvim_buf_set_option(buf_mod.bufnr, "modifiable", false)
+  vim.api.nvim_buf_set_option(menu.bufnr, "modifiable", true)
+  vim.api.nvim_buf_set_lines(menu.bufnr, index-1, index, false, {buf_line})
+  vim.api.nvim_buf_set_option(menu.bufnr, "modified", false)
+  vim.api.nvim_buf_set_option(menu.bufnr, "modifiable", false)
 end
 
 return utils

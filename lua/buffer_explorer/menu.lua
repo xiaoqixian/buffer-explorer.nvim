@@ -48,6 +48,8 @@ function M:init()
   self:update()
 end
 
+-- create a namespace and set highlight group
+-- in this namespace.
 function M:set_menu_hl()
   -- create menu highlighting namespace
   self.namespace_id = vim.api.nvim_create_namespace("buffer_explorer_menu")
