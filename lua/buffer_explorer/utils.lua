@@ -239,8 +239,22 @@ function utils.expand_buf_name(buf_mod)
   local bufnr = buf_mod.buf_list[index].bufnr
   local buf_name = vim.api.nvim_buf_get_name(bufnr)
 
+  assert(buf_mod.durable_buf_table[bufnr])
+  local name_toggled = buf_mod.durable_buf_table[bufnr].name_toggled
+
+  if name_toggled then
+    buf_mod.durable_buf_table[bufnr].name = 
+      utils.normalize_path(buf_name)
+  else 
+    buf_mod.durable_buf_table[bufnr].name = buf_name
+  end
+
+  buf_mod.durable_buf_table[bufnr].name_toggled = not name_toggled
+
+  local buf_line = buf_mod:format_buf_line(index)
+
   vim.api.nvim_buf_set_option(buf_mod.bufnr, "modifiable", true)
-  vim.api.nvim_buf_set_lines(buf_mod.bufnr, index-1, index, false, {buf_name})
+  vim.api.nvim_buf_set_lines(buf_mod.bufnr, index-1, index, false, {buf_line})
   vim.api.nvim_buf_set_option(buf_mod.bufnr, "modified", false)
   vim.api.nvim_buf_set_option(buf_mod.bufnr, "modifiable", false)
 end

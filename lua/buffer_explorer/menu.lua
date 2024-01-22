@@ -3,15 +3,25 @@
 -- Author: https://github.com/xiaoqixian
 
 local utils = require("buffer_explorer.utils")
+local icons = require("nvim-web-devicons")
 
 local defaults = {
   highlights = {},
   -- set menu number
-  menu_buf_options = {}
+  menu_buf_options = {},
+
+  modified_symbol = "[+]"
 }
 
 local M = {
   config = defaults,
+
+  -- a durable buf table save 
+  -- some durable buffer information, 
+  -- the table uses the bufnr as its key, 
+  -- and another table as the relavent 
+  -- information of that buffer.
+  durable_buf_table = {}
 }
 
 function M:setup() 
@@ -125,12 +135,30 @@ function M:create_menu_buf()
   return vim.api.nvim_create_buf(false, false)
 end
 
+function M:get_buf_name(bufnr)
+  if self.durable_buf_table[bufnr] then
+    return self.durable_buf_table[bufnr].name
+  else 
+    return vim.api.nvim_buf_get_name(bufnr)
+  end
+end
+
 -- use short file name by default
-function M:format_buf_name(index)
+function M:format_buf_line(index)
   local bufnr = self.buf_list[index].bufnr
-  local buf_name = vim.api.nvim_buf_get_name(bufnr)
-  buf_name = utils.normalize_path(buf_name)
-  return " " .. buf_name
+  local buf_name = self:get_buf_name(bufnr)
+
+  local buf_icon = icons.get_icon(buf_name, nil, { default = true })
+  if not buf_icon or buf_icon == "" then
+    buf_icon = " "
+  end
+
+  local tail_symbol = ""
+  if vim.bo[bufnr].modified then
+    tail_symbol = self.config.modified_symbol
+  end
+
+  return string.format("%s %s %s", buf_icon, buf_name, tail_symbol)
 end
 
 -- generate a buffer entry with a bufnr,
@@ -138,6 +166,29 @@ end
 -- the menu.
 -- the default get_buf_entry generates nothing.
 function M:gen_buf_entry(bufnr)
+end
+
+-- a buffer filter to decide which 
+-- buffers should be in the buf menu.
+-- return true if the buffer should be in the menu,
+-- otherwise return false
+function M:buf_filter(bufnr)
+  return vim.bo[bufnr].buflisted
+end
+
+function M:update_durable_table(bufnr)
+  local function gen_buf_info(bufnr) 
+    local buf_name = vim.api.nvim_buf_get_name(bufnr)
+    local short_name = utils.normalize_path(buf_name)
+    return {
+      name = short_name,
+      name_toggled = false
+    }
+  end
+
+  if not self.durable_buf_table[bufnr] then
+    self.durable_buf_table[bufnr] = gen_buf_info(bufnr)
+  end
 end
 
 -- buf_list should be a list
@@ -149,10 +200,12 @@ function M:update_buf_list()
   self.buf_list = {}
 
   for _, bufnr in ipairs(vim_buf_list) do
-    if vim.bo[bufnr].buflisted then
+    if self:buf_filter(bufnr) then
       local buf_entry = { bufnr = bufnr }
       utils.extend_table(buf_entry, self:gen_buf_entry(bufnr))
       table.insert(self.buf_list, buf_entry)
+
+      self:update_durable_table(bufnr)
     end
   end
 end
@@ -172,7 +225,7 @@ end
 function M:get_menu_contents()
   local contents = {}
   for i, buf in pairs(self.buf_list) do
-    table.insert(contents, self:format_buf_name(i))
+    table.insert(contents, self:format_buf_line(i))
   end
   return contents
 end
