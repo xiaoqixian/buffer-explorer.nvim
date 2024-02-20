@@ -183,31 +183,33 @@ function utils.get_buf_winid(bufnr)
   return nil
 end
 
-function utils.edit_buffer(menu) 
+function utils.open_buf_with_cmd(menu, cmd)
   local bufnr = menu:get_cur_bufnr()
   local buf_winid = utils.get_buf_winid(bufnr)
-
   menu.ui_mod:close()
 
   if buf_winid then
     vim.api.nvim_set_current_win(buf_winid)
   else 
-    vim.cmd(string.format("buffer %d", bufnr))
+    local buf_name = vim.api.nvim_buf_get_name(bufnr)
+    vim.cmd(string.format("%s %s", cmd, buf_name))
   end
 end
 
+function utils.edit_buffer(menu) 
+  utils.open_buf_with_cmd(menu, "edit")
+end
+
+function utils.sp_buffer(menu)
+  utils.open_buf_with_cmd(menu, "sp")
+end
+
+function utils.vs_buffer(menu)
+  utils.open_buf_with_cmd(menu, "vs")
+end
+
 function utils.tabnew_buffer(menu) 
-  local bufnr = menu:get_cur_bufnr()
-  local buf_winid = utils.get_buf_winid(bufnr)
-
-  menu.ui_mod:close()
-
-  if buf_winid then
-    vim.api.nvim_set_current_win(buf_winid)
-  else
-    local buf_name = vim.api.nvim_buf_get_name(bufnr)
-    vim.cmd(string.format("tabnew %s", buf_name))
-  end
+  utils.open_buf_with_cmd(menu, "tabnew")
 end
 
 function utils.delete_buffer(menu)
