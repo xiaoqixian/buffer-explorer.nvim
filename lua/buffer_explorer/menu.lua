@@ -134,7 +134,7 @@ end
 -- not buflisted
 -- not scratch buffer
 function M:create_menu_buf()
-  return vim.api.nvim_create_buf(false, false)
+  return vim.api.nvim_create_buf(false, true)
 end
 
 function M:get_buf_name(bufnr)
